@@ -1,4 +1,5 @@
 import { COLOR_KEYS, STATUSES } from "./theme";
+import { buildTree, isWithin } from "./tree";
 import type { Category, IceBoxData, Idea } from "./types";
 
 export const STORAGE_KEY = "icebox:v1";
@@ -36,21 +37,37 @@ export function reducer(state: IceBoxData, action: Action): IceBoxData {
       return { ...state, ideas: state.ideas.filter((i) => i.id !== action.id) };
     case "addCategory":
       return { ...state, categories: [...state.categories, action.category] };
-    case "updateCategory":
+    case "updateCategory": {
+      const patch = { ...action.patch };
+      // A compartment can't be moved inside itself or one of its own sub-compartments.
+      if (
+        patch.parentId != null &&
+        isWithin(buildTree(state.categories), patch.parentId, action.id)
+      ) {
+        delete patch.parentId;
+      }
       return {
         ...state,
         categories: state.categories.map((c) =>
-          c.id === action.id ? { ...c, ...action.patch } : c,
+          c.id === action.id ? { ...c, ...patch } : c,
         ),
       };
-    case "deleteCategory":
+    }
+    case "deleteCategory": {
+      // Nothing inside is lost: sub-compartments and ideas move up one level.
+      const target = state.categories.find((c) => c.id === action.id);
+      if (!target) return state;
+      const parentId = target.parentId;
       return {
-        categories: state.categories.filter((c) => c.id !== action.id),
-        ideas: state.ideas.map((i) =>
-          i.categoryId === action.id ? { ...i, categoryId: null } : i,
-        ),
         version: 1,
+        categories: state.categories
+          .filter((c) => c.id !== action.id)
+          .map((c) => (c.parentId === action.id ? { ...c, parentId } : c)),
+        ideas: state.ideas.map((i) =>
+          i.categoryId === action.id ? { ...i, categoryId: parentId } : i,
+        ),
       };
+    }
   }
 }
 
@@ -58,17 +75,30 @@ export const EMPTY: IceBoxData = { version: 1, categories: [], ideas: [] };
 
 export function seedData(): IceBoxData {
   const now = Date.now();
-  const cat = (name: string, color: Category["color"]): Category => ({
+  const cat = (
+    name: string,
+    color: Category["color"],
+    parent: Category | null = null,
+  ): Category => ({
     id: newId(),
     name,
     color,
+    parentId: parent?.id ?? null,
     createdAt: now,
   });
+  const apps = cat("Apps", "ice");
+  const games = cat("Game development", "aurora");
+  const shooter = cat("Space shooter", "aurora", games);
+  const shooterUi = cat("UI", "aurora", shooter);
+  const someday = cat("Someday", "slate");
   const categories = [
-    cat("Apps", "ice"),
-    cat("Side projects", "mint"),
+    apps,
+    games,
+    shooter,
+    shooterUi,
+    cat("Gameplay", "aurora", shooter),
     cat("Business", "lavender"),
-    cat("Someday", "slate"),
+    someday,
   ];
   const idea = (
     title: string,
@@ -93,7 +123,7 @@ export function seedData(): IceBoxData {
     ideas: [
       idea(
         "Welcome to your IceBox 🧊",
-        "Type an idea in the box at the top and press Enter to freeze it.\n\nClick a card to add notes, tags or move it. Drag cards onto a compartment in the sidebar to re-file them, or switch to Board view and drag between statuses.\n\nDelete this card whenever you like.",
+        "Type an idea in the box at the top and press Enter to freeze it.\n\nClick a card to add notes, tags or move it. Drag cards onto a compartment in the sidebar to re-file them, or switch to Board view and drag between statuses.\n\nCompartments can hold sub-compartments as deep as you like: hover one in the sidebar and press +, or drag a compartment onto another to nest it.\n\nDelete this card whenever you like.",
         null,
         "frozen",
         ["tips"],
@@ -102,7 +132,7 @@ export function seedData(): IceBoxData {
       idea(
         "Status chip = one-click progress",
         "Click the status chip on any card to cycle Frozen → Thawing → Served. Mark ideas you've dropped as Melted from the card editor.",
-        categories[0].id,
+        apps.id,
         "thawing",
         ["tips"],
         2,
@@ -110,10 +140,18 @@ export function seedData(): IceBoxData {
       idea(
         "Back up the freezer",
         "Your ideas are stored in this browser. Use Export in the top-right to download a JSON backup, and Import to restore it on another device.",
-        categories[3].id,
+        someday.id,
         "served",
         ["tips"],
         3,
+      ),
+      idea(
+        "Radial weapon wheel",
+        "Example of a deeply filed idea: Game development › Space shooter › UI.",
+        shooterUi.id,
+        "frozen",
+        ["example"],
+        4,
       ),
     ],
   };
@@ -137,12 +175,28 @@ export function parseData(raw: unknown): IceBoxData | null {
             color: COLOR_KEYS.includes(c.color as Category["color"])
               ? (c.color as Category["color"])
               : "ice",
+            parentId: typeof c.parentId === "string" ? c.parentId : null,
+            collapsed: c.collapsed === true,
             createdAt: typeof c.createdAt === "number" ? c.createdAt : Date.now(),
           },
         ]
       : [],
   );
   const catIds = new Set(categories.map((c) => c.id));
+  // Drop dangling parents and break any parent cycles so the tree stays a tree.
+  const parentOf = new Map(categories.map((c) => [c.id, c.parentId]));
+  for (const c of categories) {
+    if (c.parentId !== null && !catIds.has(c.parentId)) c.parentId = null;
+    const seen = new Set([c.id]);
+    for (let p = c.parentId; p !== null; p = parentOf.get(p) ?? null) {
+      if (seen.has(p)) {
+        c.parentId = null;
+        break;
+      }
+      seen.add(p);
+    }
+    parentOf.set(c.id, c.parentId);
+  }
   const ideas: Idea[] = raw.ideas.filter(isObj).flatMap((i) =>
     typeof i.id === "string" && typeof i.title === "string"
       ? [

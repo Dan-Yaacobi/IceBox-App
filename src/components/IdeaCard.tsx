@@ -2,21 +2,21 @@
 
 import { timeAgo } from "@/lib/store";
 import { COLORS, NEXT_STATUS, STATUS_META } from "@/lib/theme";
+import { IDEA_DRAG } from "@/lib/drag";
 import type { Category, Idea, Status } from "@/lib/types";
-
-export const DRAG_TYPE = "application/x-icebox-idea";
 
 export function IdeaCard({
   idea,
   category,
-  showCategory,
+  categoryLabel,
   onOpen,
   onStatus,
   onTag,
 }: {
   idea: Idea;
   category: Category | undefined;
-  showCategory: boolean;
+  /** Where the idea is filed, relative to the current view; omitted when obvious. */
+  categoryLabel?: string;
   onOpen: () => void;
   onStatus: (s: Status) => void;
   onTag: (tag: string) => void;
@@ -32,7 +32,7 @@ export function IdeaCard({
       tabIndex={0}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData(DRAG_TYPE, idea.id);
+        e.dataTransfer.setData(IDEA_DRAG, idea.id);
         e.dataTransfer.effectAllowed = "move";
       }}
       onClick={onOpen}
@@ -73,13 +73,14 @@ export function IdeaCard({
         </p>
       )}
 
-      {(showCategory || idea.tags.length > 0) && (
+      {(categoryLabel || idea.tags.length > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {showCategory && (
+          {categoryLabel && (
             <span
-              className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${category ? COLORS[category.color].chip : "bg-slate-100 text-slate-500 dark:bg-slate-700/40 dark:text-slate-400"}`}
+              title={categoryLabel}
+              className={`max-w-full truncate rounded-md px-1.5 py-0.5 text-xs font-medium ${category ? COLORS[category.color].chip : "bg-slate-100 text-slate-500 dark:bg-slate-700/40 dark:text-slate-400"}`}
             >
-              {category?.name ?? "Unsorted"}
+              {categoryLabel}
             </span>
           )}
           {idea.tags.map((t) => (

@@ -14,6 +14,10 @@ export interface Category {
   id: string;
   name: string;
   color: ColorKey;
+  /** null means a top-level compartment. Nesting depth is unlimited. */
+  parentId: string | null;
+  /** Whether its sub-compartments are folded away in the sidebar. */
+  collapsed?: boolean;
   createdAt: number;
 }
 

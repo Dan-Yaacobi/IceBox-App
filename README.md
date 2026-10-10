@@ -5,8 +5,12 @@ A freezer for your ideas. Jot ideas down in a second, file them into compartment
 ## Features
 
 - **Quick capture**: type in the top bar and press Enter. The idea goes into whichever compartment you're viewing, or *Unsorted*.
-- **Compartments** (categories): create, rename, recolour and delete them from the sidebar. Deleting one moves its ideas to Unsorted.
-- **Move ideas**: drag a card onto a compartment in the sidebar, or change it in the card editor.
+- **Compartments** (categories), nested as deep as you like, e.g. *Game development › Space shooter › UI*:
+  - The sidebar shows them as a tree you can fold. Hover a compartment and press **+** to add a sub-compartment, or **⋯** to rename, recolour, move or delete it.
+  - Inside a compartment, a breadcrumb trail shows where you are, and tiles list its sub-compartments; click one to go in. **+ Sub-compartment** lets you add several in a row.
+  - Viewing a compartment also shows the ideas in its sub-compartments, and each card says where it's filed. Untick the checkbox to see only that level.
+  - Deleting a compartment never loses anything: its ideas and sub-compartments move up one level.
+- **Drag and drop**: drag a card onto any compartment in the sidebar, a tile or a breadcrumb to file it there. Drag a compartment onto another to nest it, or onto *All ideas* to make it top-level. Hovering a folded compartment while dragging unfolds it.
 - **Statuses**: 🧊 Frozen → 🌡️ Thawing → 🍨 Served, plus 💧 Melted for ideas you've dropped. Click the chip on a card to move it forward.
 - **Views**: *Cards* (filter by status, sort) or *Board* (one column per status; drag cards between columns).
 - **Notes & tags** on each idea. Search covers titles, notes and tags; type `#tag` or click a tag to filter by it.
@@ -36,6 +40,7 @@ The app is a static Next.js app with no environment variables. On [Vercel](https
 ```
 src/
   app/            layout, page, global (ice) styles, favicon
-  components/     IceBoxApp (main screen), Sidebar, IdeaCard, IdeaModal, Snowfall
-  lib/            types, reducer + storage, theme constants, useIceBox hook
+  components/     IceBoxApp (main screen, breadcrumbs, sub-compartment tiles), Sidebar (tree),
+                  IdeaCard, IdeaModal, DropZone, Snowfall
+  lib/            types, reducer + storage, compartment tree helpers, drag state, theme, useIceBox hook
 ```

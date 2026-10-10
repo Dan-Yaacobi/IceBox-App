@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IDEA_DRAG } from "@/lib/drag";
 import { newId, parseData } from "@/lib/store";
 import { COLORS, STATUSES, STATUS_META } from "@/lib/theme";
-import type { Idea, Status } from "@/lib/types";
+import { type Tree, buildTree, childrenOf, flatten, isWithin, pathLabel, pathTo, rollUp, subtreeIds } from "@/lib/tree";
+import type { ColorKey, Idea, Status } from "@/lib/types";
 import { useIceBox } from "@/lib/useIceBox";
-import { DRAG_TYPE, IdeaCard } from "./IdeaCard";
+import { DropZone } from "./DropZone";
+import { IdeaCard } from "./IdeaCard";
 import { IdeaModal } from "./IdeaModal";
 import { Sidebar, type Selection } from "./Sidebar";
 
@@ -30,6 +33,8 @@ const SORTS: Record<Sort, { label: string; fn: (a: Idea, b: Idea) => number }> =
   az: { label: "A → Z", fn: (a, b) => a.title.localeCompare(b.title) },
 };
 
+const isActive = (i: Idea) => i.status === "frozen" || i.status === "thawing";
+
 function isTyping(el: EventTarget | null) {
   return (
     el instanceof HTMLElement &&
@@ -40,6 +45,7 @@ function isTyping(el: EventTarget | null) {
 export function IceBoxApp() {
   const { data, dispatch, loaded } = useIceBox();
   const [selected, setSelected] = useState<Selection>("all");
+  const [includeNested, setIncludeNested] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("updated");
@@ -51,13 +57,15 @@ export function IceBoxApp() {
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories]);
-  const selectedCategory = catById.get(selected);
+  const tree = useMemo(() => buildTree(data.categories), [data.categories]);
+  const selectedCategory = tree.byId.get(selected);
+  const selectedPath = useMemo(() => pathTo(tree, selectedCategory?.id ?? null), [tree, selectedCategory]);
+  const nameOf = (id: string | null) => (id ? pathLabel(pathTo(tree, id), 2) : "Unsorted");
 
-  // A deleted category can't stay selected.
+  // A deleted compartment can't stay selected.
   useEffect(() => {
-    if (selected !== "all" && selected !== "unsorted" && !catById.has(selected)) setSelected("all");
-  }, [selected, catById]);
+    if (selected !== "all" && selected !== "unsorted" && !tree.byId.has(selected)) setSelected("all");
+  }, [selected, tree]);
 
   useEffect(() => {
     if (!toast) return;
@@ -81,13 +89,32 @@ export function IceBoxApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openId]);
 
+  /** Unfolds the sidebar down to `id` (and `id` itself when `andSelf`). */
+  const reveal = (id: string | null, andSelf = false) => {
+    for (const c of pathTo(tree, id)) {
+      if ((andSelf || c.id !== id) && c.collapsed) {
+        dispatch({ type: "updateCategory", id: c.id, patch: { collapsed: false } });
+      }
+    }
+  };
+
+  const select = (s: Selection) => {
+    reveal(tree.byId.has(s) ? s : null);
+    setSelected(s);
+  };
+
   // Ideas filtered by compartment + search (status filtering happens per view).
   const scoped = useMemo(() => {
     const q = query.trim().toLowerCase();
     const tagQuery = q.startsWith("#") ? q.slice(1) : null;
+    const inScope: Set<string> | null = selectedCategory
+      ? includeNested
+        ? subtreeIds(tree, selectedCategory.id)
+        : new Set([selectedCategory.id])
+      : null;
     return data.ideas.filter((i) => {
       if (selected === "unsorted" && i.categoryId !== null) return false;
-      if (selected !== "all" && selected !== "unsorted" && i.categoryId !== selected) return false;
+      if (inScope && (i.categoryId === null || !inScope.has(i.categoryId))) return false;
       if (!q) return true;
       if (tagQuery !== null) return i.tags.some((t) => t.startsWith(tagQuery));
       return (
@@ -96,29 +123,28 @@ export function IceBoxApp() {
         i.tags.some((t) => t.includes(q))
       );
     });
-  }, [data.ideas, selected, query]);
+  }, [data.ideas, selected, selectedCategory, includeNested, tree, query]);
 
   const visible = useMemo(() => {
     const list = scoped.filter((i) =>
-      statusFilter === "all"
-        ? true
-        : statusFilter === "active"
-          ? i.status === "frozen" || i.status === "thawing"
-          : i.status === statusFilter,
+      statusFilter === "all" ? true : statusFilter === "active" ? isActive(i) : i.status === statusFilter,
     );
     return list.sort(SORTS[sort].fn);
   }, [scoped, statusFilter, sort]);
 
+  // Active ideas per compartment, including everything nested inside it.
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, unsorted: 0 };
+    const direct: Record<string, number> = {};
+    let all = 0;
+    let unsorted = 0;
     for (const i of data.ideas) {
-      if (i.status === "served" || i.status === "melted") continue;
-      c.all++;
-      const k = i.categoryId ?? "unsorted";
-      c[k] = (c[k] ?? 0) + 1;
+      if (!isActive(i)) continue;
+      all++;
+      if (i.categoryId === null) unsorted++;
+      else direct[i.categoryId] = (direct[i.categoryId] ?? 0) + 1;
     }
-    return c;
-  }, [data.ideas]);
+    return { ...rollUp(tree, direct), all, unsorted };
+  }, [data.ideas, tree]);
 
   const stats = useMemo(() => {
     const s: Record<Status, number> = { frozen: 0, thawing: 0, served: 0, melted: 0 };
@@ -147,14 +173,51 @@ export function IceBoxApp() {
     if (statusFilter !== "active" && statusFilter !== "all" && statusFilter !== "frozen") {
       setStatusFilter("active");
     }
-    setToast(`🧊 Frozen into ${selectedCategory?.name ?? "Unsorted"}`);
+    setToast(`🧊 Frozen into ${nameOf(selectedCategory?.id ?? null)}`);
   };
 
   const moveIdea = (id: string, categoryId: string | null) => {
     const idea = data.ideas.find((i) => i.id === id);
     if (!idea || idea.categoryId === categoryId) return;
     dispatch({ type: "updateIdea", id, patch: { categoryId } });
-    setToast(`Moved to ${categoryId ? catById.get(categoryId)?.name : "Unsorted"}`);
+    setToast(`Moved to ${nameOf(categoryId)}`);
+  };
+
+  const moveCategory = (id: string, parentId: string | null) => {
+    const c = tree.byId.get(id);
+    if (!c || c.parentId === parentId) return;
+    if (parentId !== null && isWithin(tree, parentId, id)) return;
+    dispatch({ type: "updateCategory", id, patch: { parentId } });
+    if (parentId) reveal(parentId, true);
+    setToast(parentId ? `Moved “${c.name}” into ${nameOf(parentId)}` : `“${c.name}” is now top-level`);
+  };
+
+  const addCategory = (name: string, color: ColorKey, parentId: string | null) => {
+    const category = { id: newId(), name, color, parentId, createdAt: Date.now() };
+    dispatch({ type: "addCategory", category });
+    if (parentId) {
+      // Stay where you are so several sub-compartments can be added in a row.
+      reveal(parentId, true);
+      setToast(`Created “${name}” inside ${nameOf(parentId)}`);
+    } else {
+      setSelected(category.id);
+    }
+  };
+
+  const deleteCategory = (id: string): boolean => {
+    const c = tree.byId.get(id);
+    if (!c) return false;
+    const ideas = data.ideas.filter((i) => i.categoryId === id).length;
+    const subs = childrenOf(tree, id).length;
+    const parent = c.parentId ? `“${tree.byId.get(c.parentId)?.name}”` : null;
+    const notes = [
+      ideas && `${ideas} idea${ideas === 1 ? "" : "s"} will move to ${parent ?? "Unsorted"}.`,
+      subs && `${subs} sub-compartment${subs === 1 ? "" : "s"} will move up to ${parent ?? "the top level"}.`,
+    ].filter(Boolean);
+    if (!confirm([`Delete “${c.name}”?`, ...notes].join("\n"))) return false;
+    if (selected === id) setSelected(c.parentId ?? "all");
+    dispatch({ type: "deleteCategory", id });
+    return true;
   };
 
   const setStatus = (id: string, status: Status) => dispatch({ type: "updateIdea", id, patch: { status } });
@@ -189,20 +252,35 @@ export function IceBoxApp() {
 
   const closeModal = useCallback(() => setOpenId(null), []);
   const openIdea = openId ? data.ideas.find((i) => i.id === openId) : undefined;
-  const heading =
-    selected === "all" ? "All ideas" : selected === "unsorted" ? "Unsorted" : (selectedCategory?.name ?? "");
+  const compartments = useMemo(
+    () => flatten(tree).map(({ category: c, depth }) => ({ id: c.id, name: c.name, depth })),
+    [tree],
+  );
+
+  /** Where a card is filed, relative to what you're looking at (hidden when it's right here). */
+  const labelFor = (idea: Idea): string | undefined => {
+    if (selected === "unsorted") return undefined;
+    if (!selectedCategory) return idea.categoryId ? pathLabel(pathTo(tree, idea.categoryId), 3) : "Unsorted";
+    if (idea.categoryId === selectedCategory.id || idea.categoryId === null) return undefined;
+    const path = pathTo(tree, idea.categoryId);
+    const below = path.slice(path.findIndex((c) => c.id === selectedCategory.id) + 1);
+    return pathLabel(below, 2);
+  };
 
   const card = (idea: Idea) => (
     <IdeaCard
       key={idea.id}
       idea={idea}
-      category={idea.categoryId ? catById.get(idea.categoryId) : undefined}
-      showCategory={selected === "all"}
+      category={idea.categoryId ? tree.byId.get(idea.categoryId) : undefined}
+      categoryLabel={labelFor(idea)}
       onOpen={() => setOpenId(idea.id)}
       onStatus={(s) => setStatus(idea.id, s)}
       onTag={(t) => setQuery(`#${t}`)}
     />
   );
+
+  const heading = selected === "all" ? "All ideas" : selected === "unsorted" ? "Unsorted" : (selectedCategory?.name ?? "");
+  const hasNested = !!selectedCategory && childrenOf(tree, selectedCategory.id).length > 0;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-10 sm:px-6">
@@ -265,8 +343,11 @@ export function IceBoxApp() {
           className="min-w-0 flex-1 bg-transparent py-2 text-base text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
         />
         {selectedCategory && (
-          <span className={`hidden shrink-0 rounded-md px-2 py-0.5 text-xs font-medium sm:inline ${COLORS[selectedCategory.color].chip}`}>
-            → {selectedCategory.name}
+          <span
+            title={selectedPath.map((c) => c.name).join(" › ")}
+            className={`hidden max-w-60 shrink-0 truncate rounded-md px-2 py-0.5 text-xs font-medium sm:inline ${COLORS[selectedCategory.color].chip}`}
+          >
+            → {pathLabel(selectedPath, 2)}
           </span>
         )}
         <button type="submit" disabled={!draft.trim()} className="ice-button shrink-0 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50">
@@ -275,27 +356,35 @@ export function IceBoxApp() {
       </form>
 
       <div className="flex flex-1 flex-col gap-6 md:flex-row">
-        <aside className="md:w-56 md:shrink-0">
+        <aside className="md:w-60 md:shrink-0">
           <Sidebar
-            categories={data.categories}
+            tree={tree}
             counts={counts}
             selected={selected}
-            onSelect={setSelected}
+            onSelect={select}
             onMoveIdea={moveIdea}
-            onAddCategory={(name, color) => {
-              const category = { id: newId(), name, color, createdAt: Date.now() };
-              dispatch({ type: "addCategory", category });
-              setSelected(category.id);
-            }}
-            onUpdateCategory={(id, name, color) => dispatch({ type: "updateCategory", id, patch: { name, color } })}
-            onDeleteCategory={(id) => dispatch({ type: "deleteCategory", id })}
+            onMoveCategory={moveCategory}
+            onAddCategory={addCategory}
+            onUpdateCategory={(id, patch) => dispatch({ type: "updateCategory", id, patch })}
+            onDeleteCategory={deleteCategory}
           />
         </aside>
 
         <main className="min-w-0 flex-1">
           {/* Toolbar */}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <h2 className="mr-auto text-lg font-semibold text-sky-950 dark:text-sky-50">{heading}</h2>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="mr-auto min-w-0">
+              {selectedPath.length > 1 && (
+                <Breadcrumbs
+                  tree={tree}
+                  path={selectedPath.slice(0, -1)}
+                  onSelect={select}
+                  onMoveIdea={moveIdea}
+                  onMoveCategory={moveCategory}
+                />
+              )}
+              <h2 className="truncate text-lg font-semibold text-sky-950 dark:text-sky-50">{heading}</h2>
+            </div>
             <div className="relative">
               <input
                 ref={searchRef}
@@ -343,6 +432,21 @@ export function IceBoxApp() {
               ))}
             </div>
           </div>
+
+          {loaded && selectedCategory && (
+            <SubCompartments
+              key={selectedCategory.id}
+              tree={tree}
+              parentId={selectedCategory.id}
+              counts={counts}
+              includeNested={includeNested}
+              onIncludeNested={hasNested ? setIncludeNested : undefined}
+              onSelect={select}
+              onMoveIdea={moveIdea}
+              onMoveCategory={moveCategory}
+              onAdd={(name) => addCategory(name, selectedCategory.color, selectedCategory.id)}
+            />
+          )}
 
           {!loaded ? null : view === "cards" ? (
             <>
@@ -394,7 +498,7 @@ export function IceBoxApp() {
         <IdeaModal
           key={openIdea.id}
           idea={openIdea}
-          categories={data.categories}
+          compartments={compartments}
           onClose={closeModal}
           onDelete={() => {
             dispatch({ type: "deleteIdea", id: openIdea.id });
@@ -410,12 +514,175 @@ export function IceBoxApp() {
       {toast && (
         <div
           role="status"
-          className="frost-panel fixed bottom-5 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-2 text-sm text-sky-900 shadow-lg dark:text-sky-100"
+          className="frost-panel fixed bottom-5 left-1/2 z-40 max-w-[90vw] -translate-x-1/2 truncate rounded-full px-4 py-2 text-sm text-sky-900 shadow-lg dark:text-sky-100"
         >
           {toast}
         </div>
       )}
     </div>
+  );
+}
+
+/** "All ideas › Game development › Space shooter ›" above the heading; every step is clickable and droppable. */
+function Breadcrumbs({
+  tree,
+  path,
+  onSelect,
+  onMoveIdea,
+  onMoveCategory,
+}: {
+  tree: Tree;
+  path: { id: string; name: string }[];
+  onSelect: (s: Selection) => void;
+  onMoveIdea: (ideaId: string, categoryId: string | null) => void;
+  onMoveCategory: (categoryId: string, parentId: string | null) => void;
+}) {
+  const crumb = (over: boolean) =>
+    `rounded px-1 py-0.5 transition hover:text-sky-700 hover:underline dark:hover:text-sky-200 ${over ? "bg-sky-200/80 ring-2 ring-sky-400 dark:bg-sky-400/25" : ""}`;
+  return (
+    <nav aria-label="Breadcrumb" className="mb-0.5 flex flex-wrap items-center text-xs text-slate-500 dark:text-slate-400">
+      <DropZone onCategory={(id) => onMoveCategory(id, null)} acceptsCategory={(id) => tree.byId.get(id)?.parentId != null}>
+        {(over) => (
+          <button type="button" onClick={() => onSelect("all")} className={crumb(over)}>
+            All ideas
+          </button>
+        )}
+      </DropZone>
+      {path.map((c) => (
+        <span key={c.id} className="flex items-center">
+          <span aria-hidden className="px-0.5 text-slate-300 dark:text-slate-600">›</span>
+          <DropZone
+            onIdea={(id) => onMoveIdea(id, c.id)}
+            onCategory={(id) => onMoveCategory(id, c.id)}
+            acceptsCategory={(id) => !isWithin(tree, c.id, id) && tree.byId.get(id)?.parentId !== c.id}
+          >
+            {(over) => (
+              <button type="button" onClick={() => onSelect(c.id)} className={crumb(over)}>
+                {c.name}
+              </button>
+            )}
+          </DropZone>
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+/** Tiles for the compartments inside the current one, plus a quick way to add more. */
+function SubCompartments({
+  tree,
+  parentId,
+  counts,
+  includeNested,
+  onIncludeNested,
+  onSelect,
+  onMoveIdea,
+  onMoveCategory,
+  onAdd,
+}: {
+  tree: Tree;
+  parentId: string;
+  counts: Record<string, number>;
+  includeNested: boolean;
+  /** Present only when there is something nested to include. */
+  onIncludeNested?: (v: boolean) => void;
+  onSelect: (s: Selection) => void;
+  onMoveIdea: (ideaId: string, categoryId: string | null) => void;
+  onMoveCategory: (categoryId: string, parentId: string | null) => void;
+  onAdd: (name: string) => void;
+}) {
+  const kids = childrenOf(tree, parentId);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+
+  return (
+    <section aria-label="Sub-compartments" className="mb-5">
+      {(kids.length > 0 || onIncludeNested) && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-sky-700/70 dark:text-sky-300/60">
+            Inside
+          </h3>
+          {onIncludeNested && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <input
+                type="checkbox"
+                checked={includeNested}
+                onChange={(e) => onIncludeNested(e.target.checked)}
+                className="accent-sky-500"
+              />
+              Show ideas from sub-compartments too
+            </label>
+          )}
+        </div>
+      )}
+      <div className={kids.length ? "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4" : "flex"}>
+        {kids.map((c) => {
+          const nested = childrenOf(tree, c.id).length;
+          return (
+            <DropZone
+              key={c.id}
+              onIdea={(id) => onMoveIdea(id, c.id)}
+              onCategory={(id) => onMoveCategory(id, c.id)}
+              acceptsCategory={(id) => !isWithin(tree, c.id, id) && tree.byId.get(id)?.parentId !== c.id}
+            >
+              {(over) => (
+                <button
+                  type="button"
+                  onClick={() => onSelect(c.id)}
+                  className={`frost-card flex w-full items-center gap-2 rounded-xl border-l-4 ${COLORS[c.color].stripe} px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:shadow-md ${over ? "ring-2 ring-sky-400" : ""}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{c.name}</span>
+                    <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                      {counts[c.id] ?? 0} idea{counts[c.id] === 1 ? "" : "s"}
+                      {nested > 0 && ` · ${nested} inside`}
+                    </span>
+                  </span>
+                  <span aria-hidden className="text-slate-300 dark:text-slate-600">›</span>
+                </button>
+              )}
+            </DropZone>
+          );
+        })}
+        {adding ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!name.trim()) return;
+              onAdd(name.trim());
+              setName(""); // stay open to add several in a row
+            }}
+            className={`frost-card flex items-center gap-1 rounded-xl px-2 py-1.5 ${kids.length ? "" : "w-full max-w-xs"}`}
+          >
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setAdding(false);
+              }}
+              onBlur={() => {
+                if (!name.trim()) setAdding(false);
+              }}
+              placeholder="Name, then Enter"
+              aria-label="New sub-compartment name"
+              className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+            />
+            <button type="submit" className="ice-button rounded-md px-2 py-0.5 text-xs font-semibold">
+              Add
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className={`rounded-xl border border-dashed border-sky-300/80 text-left text-sm text-sky-700 ${kids.length ? "px-3 py-2.5" : "px-3 py-1"} transition hover:bg-white/50 dark:border-sky-300/20 dark:text-sky-300 dark:hover:bg-white/5`}
+          >
+            + Sub-compartment
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -435,7 +702,7 @@ function BoardColumn({
   return (
     <section
       onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+        if (!e.dataTransfer.types.includes(IDEA_DRAG)) return;
         e.preventDefault();
         setOver(true);
       }}
@@ -444,7 +711,7 @@ function BoardColumn({
       }}
       onDrop={(e) => {
         setOver(false);
-        const id = e.dataTransfer.getData(DRAG_TYPE);
+        const id = e.dataTransfer.getData(IDEA_DRAG);
         if (id) {
           e.preventDefault();
           onDropIdea(id);

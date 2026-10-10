@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { STATUSES, STATUS_META } from "@/lib/theme";
-import type { Category, Idea } from "@/lib/types";
+import type { Idea } from "@/lib/types";
 
 function parseTags(s: string): string[] {
   const seen = new Set<string>();
@@ -15,13 +15,14 @@ function parseTags(s: string): string[] {
 
 export function IdeaModal({
   idea,
-  categories,
+  compartments,
   onSave,
   onDelete,
   onClose,
 }: {
   idea: Idea;
-  categories: Category[];
+  /** Every compartment in tree order, with its nesting depth. */
+  compartments: { id: string; name: string; depth: number }[];
   onSave: (patch: Partial<Idea>) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -117,9 +118,9 @@ export function IdeaModal({
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Compartment</label>
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={field}>
               <option value="">Unsorted</option>
-              {categories.map((c) => (
+              {compartments.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {"\u00A0\u00A0\u00A0".repeat(c.depth) + (c.depth ? "↳ " : "") + c.name}
                 </option>
               ))}
             </select>
