@@ -1,3 +1,5 @@
+import { Preferences } from "@capacitor/preferences";
+import { isNativeApp } from "./platform";
 import { COLOR_KEYS, STATUSES } from "./theme";
 import { buildTree, isWithin } from "./tree";
 import type { Category, IceBoxData, Idea } from "./types";
@@ -223,21 +225,54 @@ export function parseData(raw: unknown): IceBoxData | null {
   return { version: 1, categories, ideas };
 }
 
-export function loadData(): IceBoxData {
+function parseRaw(raw: string | null): IceBoxData | null {
+  if (raw === null) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return seedData();
-    return parseData(JSON.parse(raw)) ?? seedData();
+    return parseData(JSON.parse(raw));
   } catch {
-    return seedData();
+    return null;
   }
 }
 
-export function saveData(data: IceBoxData) {
+function readLocal(): string | null {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * In the Android app ideas live in native storage (Capacitor Preferences), with the
+ * WebView's localStorage as a fallback copy. In a browser only localStorage is used.
+ */
+export async function loadData(): Promise<IceBoxData> {
+  if (isNativeApp()) {
+    try {
+      const { value } = await Preferences.get({ key: STORAGE_KEY });
+      const native = parseRaw(value);
+      if (native) return native;
+    } catch {
+      // fall through to the local copy
+    }
+  }
+  return parseRaw(readLocal()) ?? seedData();
+}
+
+let pendingNativeWrite: Promise<unknown> = Promise.resolve();
+
+export function saveData(data: IceBoxData) {
+  const json = JSON.stringify(data);
+  try {
+    localStorage.setItem(STORAGE_KEY, json);
   } catch {
     // Storage full or blocked; nothing sensible to do beyond keeping in-memory state.
+  }
+  if (isNativeApp()) {
+    // Chain writes so an older snapshot can never land after a newer one.
+    pendingNativeWrite = pendingNativeWrite
+      .catch(() => undefined)
+      .then(() => Preferences.set({ key: STORAGE_KEY, value: json }));
   }
 }
 

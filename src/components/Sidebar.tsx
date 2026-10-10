@@ -27,7 +27,7 @@ function rowClass(over: boolean, active: boolean) {
 function CountPill({ n, hideOnHover }: { n: number; hideOnHover?: boolean }) {
   return (
     <span
-      className={`ml-auto shrink-0 rounded-full bg-sky-100/80 px-2 text-xs tabular-nums text-sky-700 dark:bg-sky-400/10 dark:text-sky-300 ${hideOnHover ? "md:group-hover/row:opacity-0" : ""}`}
+      className={`ml-auto shrink-0 rounded-full bg-sky-100/80 px-2 text-xs tabular-nums text-sky-700 dark:bg-sky-400/10 dark:text-sky-300 ${hideOnHover ? "md:pointer-fine:group-hover/row:opacity-0" : ""}`}
     >
       {n}
     </span>
@@ -193,8 +193,9 @@ export function Sidebar({
 
     return (
       <div key={c.id} className="shrink-0">
-        <div className="group/row relative flex items-center md:block">
+        <div className="group/row relative flex items-center md:pointer-fine:block">
           <DropZone
+            className="min-w-0 md:flex-1"
             onIdea={(id) => onMoveIdea(id, c.id)}
             onCategory={(id) => onMoveCategory(id, c.id)}
             acceptsCategory={(id) => !isWithin(tree, c.id, id) && tree.byId.get(id)?.parentId !== c.id}
@@ -244,7 +245,8 @@ export function Sidebar({
               </div>
             )}
           </DropZone>
-          <div className="flex items-center gap-0.5 pr-1 md:absolute md:right-1 md:top-1/2 md:-translate-y-1/2 md:opacity-0 md:group-hover/row:opacity-100 md:focus-within:opacity-100">
+          {/* Mouse: revealed on hover. Touch (no hover): always shown beside the row. */}
+          <div className="flex items-center gap-0.5 pr-1 md:pointer-fine:absolute md:pointer-fine:right-1 md:pointer-fine:top-1/2 md:pointer-fine:-translate-y-1/2 md:pointer-fine:opacity-0 md:pointer-fine:group-hover/row:opacity-100 md:pointer-fine:focus-within:opacity-100">
             <button
               type="button"
               onClick={() => setEditing({ mode: "add", parentId: c.id })}

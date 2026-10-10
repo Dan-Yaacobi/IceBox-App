@@ -7,10 +7,17 @@ export function useIceBox() {
   const [data, dispatch] = useReducer(reducer, EMPTY);
   const [loaded, setLoaded] = useState(false);
 
-  // localStorage only exists in the browser, so load after mount.
+  // Storage only exists on the client, so load after mount.
   useEffect(() => {
-    dispatch({ type: "load", data: loadData() });
-    setLoaded(true);
+    let cancelled = false;
+    void loadData().then((data) => {
+      if (cancelled) return;
+      dispatch({ type: "load", data });
+      setLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

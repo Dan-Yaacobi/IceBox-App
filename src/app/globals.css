@@ -30,9 +30,26 @@
   --font-sans: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Space taken by the phone's status and navigation bars. Capacitor injects the
+   --safe-area-inset-* variables in the Android app; browsers provide env(). */
+:root {
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+
 body {
   min-height: 100vh;
   font-family: var(--font-sans);
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+/* Long-pressing to drag shouldn't select text or open the Android context menu. */
+[draggable="true"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Background lives on html (the canvas) so the snow layer can sit above it. */

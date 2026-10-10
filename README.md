@@ -20,7 +20,35 @@ A freezer for your ideas. Jot ideas down in a second, file them into compartment
 
 ## Where your data lives
 
-Ideas are saved in your browser's `localStorage`. You don't need a server, database or login. Each browser and device has its own freezer, so use Export/Import to back up or move your ideas.
+In a browser, ideas are saved in the browser's `localStorage`. In the Android app, they're saved in the app's own storage on the phone. You don't need a server, database or login. Each browser and device has its own freezer, so use Export/Import to back up or move your ideas. In the app, Export opens Android's share sheet, so you can save the backup to Drive or Files or send it to yourself.
+
+## Android app (offline APK)
+
+The same code is packaged as an Android app with [Capacitor](https://capacitorjs.com). The whole app lives inside the APK and works without internet.
+
+**Install on your phone**
+
+1. On the phone, open **https://github.com/Dan-Yaacobi/IceBox-App/releases/tag/android-latest** and tap **IceBox.apk**.
+2. Android asks to allow installs from your browser ("Install unknown apps"). Allow it once, then tap **Install**.
+3. To update later, download and install the newest `IceBox.apk` the same way. Your ideas are kept.
+
+Every push to `main` or a `claude/**` branch builds a new APK in GitHub Actions (`.github/workflows/android.yml`) and replaces the file on that release.
+
+**On the phone**
+- Long-press a card or compartment, then drag it onto a compartment, tile, breadcrumb or board column. A quick tap still opens it.
+- The back button closes the editor, then clears the search, then goes up one compartment level.
+
+**Build it yourself** (needs JDK 21 and the Android SDK, e.g. via Android Studio)
+
+```bash
+npm run build:android                       # static export + copy into android/
+cd android && ./gradlew assembleRelease     # → app/build/outputs/apk/release/app-release.apk
+# or: npm run android:open                  # open the project in Android Studio
+```
+
+**Signing:** builds are signed with `android/app/icebox-sideload.keystore`, which is committed to the repo on purpose. Android only installs an update if it was signed with the same key as the installed app, so every build has to use the same key. That's fine for an app you sideload yourself. If this ever goes to the Play Store, switch to a private key kept out of the repo.
+
+**Icons:** the source images are in `assets/`. After changing them, run `npm run android:icons`.
 
 ## Development
 
@@ -28,12 +56,12 @@ Ideas are saved in your browser's `localStorage`. You don't need a server, datab
 npm install
 npm run dev     # http://localhost:3000
 npm run lint
-npm run build
+npm run build   # static export to out/
 ```
 
-## Deploy
+## Deploy (web)
 
-The app is a static Next.js app with no environment variables. On [Vercel](https://vercel.com/new), import the repo and click Deploy. It works on any host that runs Next.js.
+`next build` produces a fully static site in `out/` and needs no environment variables. On [Vercel](https://vercel.com/new), import the repo and click Deploy. You can also upload `out/` to any static host.
 
 ## Project layout
 

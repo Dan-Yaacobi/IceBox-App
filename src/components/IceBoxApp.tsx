@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IDEA_DRAG } from "@/lib/drag";
+import { enableTouchDrag, saveTextFile, useBackButton } from "@/lib/native";
+import { isNativeApp } from "@/lib/platform";
 import { newId, parseData } from "@/lib/store";
 import { COLORS, STATUSES, STATUS_META } from "@/lib/theme";
 import { type Tree, buildTree, childrenOf, flatten, isWithin, pathLabel, pathTo, rollUp, subtreeIds } from "@/lib/tree";
@@ -53,6 +55,8 @@ export function IceBoxApp() {
   const [draft, setDraft] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Only known after mount (the page is prerendered without Capacitor).
+  const [native, setNative] = useState(false);
   const captureRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -61,6 +65,11 @@ export function IceBoxApp() {
   const selectedCategory = tree.byId.get(selected);
   const selectedPath = useMemo(() => pathTo(tree, selectedCategory?.id ?? null), [tree, selectedCategory]);
   const nameOf = (id: string | null) => (id ? pathLabel(pathTo(tree, id), 2) : "Unsorted");
+
+  useEffect(() => {
+    setNative(isNativeApp());
+    void enableTouchDrag();
+  }, []);
 
   // A deleted compartment can't stay selected.
   useEffect(() => {
@@ -222,14 +231,16 @@ export function IceBoxApp() {
 
   const setStatus = (id: string, status: Status) => dispatch({ type: "updateIdea", id, patch: { status } });
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `icebox-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportData = async () => {
+    try {
+      await saveTextFile(
+        `icebox-${new Date().toISOString().slice(0, 10)}.json`,
+        JSON.stringify(data, null, 2),
+        "application/json",
+      );
+    } catch {
+      // The share sheet was dismissed; nothing to do.
+    }
   };
 
   const importData = async (file: File) => {
@@ -251,6 +262,27 @@ export function IceBoxApp() {
   };
 
   const closeModal = useCallback(() => setOpenId(null), []);
+
+  // Android back: close the editor, then clear search, then climb out of compartments.
+  useBackButton(() => {
+    if (openId) {
+      setOpenId(null);
+      return true;
+    }
+    if (query) {
+      setQuery("");
+      return true;
+    }
+    if (selectedCategory) {
+      select(selectedCategory.parentId ?? "all");
+      return true;
+    }
+    if (selected === "unsorted") {
+      setSelected("all");
+      return true;
+    }
+    return false;
+  });
   const openIdea = openId ? data.ideas.find((i) => i.id === openId) : undefined;
   const compartments = useMemo(
     () => flatten(tree).map(({ category: c, depth }) => ({ id: c.id, name: c.name, depth })),
@@ -300,7 +332,7 @@ export function IceBoxApp() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={exportData} className="ghost-button rounded-lg px-3 py-1.5 text-sm" title="Download a JSON backup">
+          <button type="button" onClick={() => void exportData()} className="ghost-button rounded-lg px-3 py-1.5 text-sm" title="Download a JSON backup">
             Export
           </button>
           <button
@@ -314,7 +346,8 @@ export function IceBoxApp() {
           <input
             ref={fileRef}
             type="file"
-            accept="application/json,.json"
+            // Android's picker hides .json files from some apps when filtered by type.
+            accept={native ? undefined : "application/json,.json"}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -390,7 +423,7 @@ export function IceBoxApp() {
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search…  ( / )"
+                placeholder={native ? "Search…" : "Search…  ( / )"}
                 aria-label="Search ideas"
                 className="w-44 rounded-lg border border-sky-200 bg-white/70 px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-300/50 sm:w-56 dark:border-sky-300/15 dark:bg-slate-900/50 dark:text-slate-100"
               />
@@ -490,8 +523,13 @@ export function IceBoxApp() {
       </div>
 
       <footer className="mt-10 text-center text-xs text-slate-500 dark:text-slate-500">
-        Your ideas are kept in this browser. Use <b>Export</b> now and then to back them up. · Shortcuts:{" "}
-        <kbd className="kbd">n</kbd> new idea, <kbd className="kbd">/</kbd> search
+        Your ideas are kept {native ? "on this phone" : "in this browser"}. Use <b>Export</b> now and then to back
+        them up.
+        <span className="pointer-coarse:hidden">
+          {" "}
+          · Shortcuts: <kbd className="kbd">n</kbd> new idea, <kbd className="kbd">/</kbd> search
+        </span>
+        {native && <span className="block pt-1">Long-press a card to drag it.</span>}
       </footer>
 
       {openIdea && (
@@ -514,7 +552,7 @@ export function IceBoxApp() {
       {toast && (
         <div
           role="status"
-          className="frost-panel fixed bottom-5 left-1/2 z-40 max-w-[90vw] -translate-x-1/2 truncate rounded-full px-4 py-2 text-sm text-sky-900 shadow-lg dark:text-sky-100"
+          className="frost-panel fixed bottom-[calc(1.25rem+var(--safe-bottom))] left-1/2 z-40 max-w-[90vw] -translate-x-1/2 truncate rounded-full px-4 py-2 text-sm text-sky-900 shadow-lg dark:text-sky-100"
         >
           {toast}
         </div>
@@ -701,6 +739,9 @@ function BoardColumn({
   const meta = STATUS_META[status];
   return (
     <section
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes(IDEA_DRAG)) e.preventDefault();
+      }}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(IDEA_DRAG)) return;
         e.preventDefault();

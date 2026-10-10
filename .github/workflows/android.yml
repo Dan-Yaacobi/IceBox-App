@@ -1,0 +1,62 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, master, "claude/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # to publish the APK on the "android-latest" release
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app and copy it into the Android project
+        run: npm run build:android
+
+      - name: Build APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk IceBox.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IceBox-apk
+          path: IceBox.apk
+
+      # A fixed download link that always holds the newest build — easy to open on the phone.
+      - name: Publish to the android-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: IceBox for Android (latest build)
+          body: |
+            Newest IceBox APK, built from `${{ github.ref_name }}` at ${{ github.sha }} (build ${{ github.run_number }}).
+            Open this page on your phone and tap **IceBox.apk** to install or update.
+          files: IceBox.apk
+          make_latest: true

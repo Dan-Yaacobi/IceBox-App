@@ -85,7 +85,7 @@ export function IdeaModal({
             save();
           }
         }}
-        className="frost-panel max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl p-5 sm:rounded-2xl"
+        className="frost-panel max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl p-5 pb-[calc(1.25rem+var(--safe-bottom))] sm:rounded-2xl sm:pb-5"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-300">

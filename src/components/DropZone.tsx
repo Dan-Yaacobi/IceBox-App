@@ -46,6 +46,13 @@ export function DropZone({
   return (
     <div
       className={className}
+      // Accepting dragenter is what makes this the drop target in spec-strict
+      // implementations (the touch polyfill); desktop browsers only need dragover.
+      onDragEnter={(e) => {
+        if (!accepts(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onDragOver={(e) => {
         if (!accepts(e)) return;
         e.preventDefault();
