@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <Snowfall />
+        <Snowfall count={10} />
         {children}
       </body>
     </html>

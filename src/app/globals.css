@@ -145,8 +145,20 @@ html {
   font-size: 0.9em;
 }
 
-/* Falling snow */
+/* Sheets slide up from the bottom. */
+.sheet-in {
+  animation: sheet-in 0.22s ease-out;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+/* Falling snow: sparse and faint so it never competes with the content. */
 .snowflake {
+  opacity: 0.55;
   position: absolute;
   top: -12px;
   border-radius: 9999px;
@@ -169,5 +181,8 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .snowflake {
     display: none;
+  }
+  .sheet-in {
+    animation: none;
   }
 }

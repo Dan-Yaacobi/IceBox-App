@@ -125,15 +125,15 @@ export function seedData(): IceBoxData {
     ideas: [
       idea(
         "Welcome to your IceBox 🧊",
-        "Type an idea in the box at the top and press Enter to freeze it.\n\nClick a card to add notes, tags or move it. Drag cards onto a compartment in the sidebar to re-file them, or switch to Board view and drag between statuses.\n\nCompartments can hold sub-compartments as deep as you like: hover one in the sidebar and press +, or drag a compartment onto another to nest it.\n\nDelete this card whenever you like.",
+        "Type an idea in the box at the top and press Enter to freeze it. It lands in whatever compartment you're in.\n\nTap an idea to add notes or tags, or to move it to another compartment. Compartments can hold sub-compartments as deep as you like.\n\nOn a phone, long-press an idea or compartment and drag it onto a compartment, or onto the back link to move it up.\n\nDelete this idea whenever you like.",
         null,
         "frozen",
         ["tips"],
         1,
       ),
       idea(
-        "Status chip = one-click progress",
-        "Click the status chip on any card to cycle Frozen → Thawing → Served. Mark ideas you've dropped as Melted from the card editor.",
+        "Thawing = working on it",
+        "Open an idea and tap its status to change it: Frozen (for later), Thawing (in progress), Served (done) or Melted (dropped). Served and melted ideas tuck away under \"Show finished\".",
         apps.id,
         "thawing",
         ["tips"],
@@ -141,7 +141,7 @@ export function seedData(): IceBoxData {
       ),
       idea(
         "Back up the freezer",
-        "Your ideas are stored in this browser. Use Export in the top-right to download a JSON backup, and Import to restore it on another device.",
+        "Your ideas are stored on this device. Use Export backup in the ⋯ menu on the home screen to save a copy, and Import backup to restore it.",
         someday.id,
         "served",
         ["tips"],
@@ -149,7 +149,7 @@ export function seedData(): IceBoxData {
       ),
       idea(
         "Radial weapon wheel",
-        "Example of a deeply filed idea: Game development › Space shooter › UI.",
+        "An example of an idea filed three levels deep.",
         shooterUi.id,
         "frozen",
         ["example"],

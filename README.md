@@ -2,21 +2,18 @@
 
 A freezer for your ideas. Jot ideas down in a second, file them into compartments, and track which ones you've thawed (started), served (shipped) or let melt (dropped). It replaces the ever-growing Google Doc.
 
-## Features
+## How it works
 
-- **Quick capture**: type in the top bar and press Enter. The idea goes into whichever compartment you're viewing, or *Unsorted*.
-- **Compartments** (categories), nested as deep as you like, e.g. *Game development › Space shooter › UI*:
-  - The sidebar shows them as a tree you can fold. Hover a compartment and press **+** to add a sub-compartment, or **⋯** to rename, recolour, move or delete it.
-  - Inside a compartment, a breadcrumb trail shows where you are, and tiles list its sub-compartments; click one to go in. **+ Sub-compartment** lets you add several in a row.
-  - Viewing a compartment also shows the ideas in its sub-compartments, and each card says where it's filed. Untick the checkbox to see only that level.
-  - Deleting a compartment never loses anything: its ideas and sub-compartments move up one level.
-- **Drag and drop**: drag a card onto any compartment in the sidebar, a tile or a breadcrumb to file it there. Drag a compartment onto another to nest it, or onto *All ideas* to make it top-level. Hovering a folded compartment while dragging unfolds it.
-- **Statuses**: 🧊 Frozen → 🌡️ Thawing → 🍨 Served, plus 💧 Melted for ideas you've dropped. Click the chip on a card to move it forward.
-- **Views**: *Cards* (filter by status, sort) or *Board* (one column per status; drag cards between columns).
-- **Notes & tags** on each idea. Search covers titles, notes and tags; type `#tag` or click a tag to filter by it.
-- **Shortcuts**: `n` focuses the capture bar, `/` focuses search, `Ctrl/⌘ + Enter` saves the editor, and `Esc` closes it.
-- **Backup**: *Export* downloads a JSON file and *Import* restores one, which also moves your ideas between devices.
-- Light and dark frosty themes that follow your OS setting, with gentle snowfall that turns off when reduced motion is on.
+The app has one clean screen per place, like a file browser:
+
+- **Capture first.** Every screen opens with the "Got an idea?" box. Type an idea and press Enter, and it's frozen into the compartment you're in.
+- **Compartments**, nested as deep as you like (e.g. *Game development › Space shooter › UI*). Each screen lists the compartments inside it, then its own ideas. Tap a compartment to go in. The **‹ back** link at the top takes you up a level.
+- **Statuses:** 🧊 Frozen (for later), 🌡️ Thawing (in progress), 🍨 Served (done) and 💧 Melted (dropped). Served and melted ideas tuck away under **Show finished**.
+- **Editing:** tap an idea to edit its title, notes and #tags. Its compartment and status are two tappable pills. Changes save as you type.
+- **The ⋯ menu** holds everything else: new compartment or sub-compartment, edit (rename, colour, move) or delete a compartment, and Export/Import backup. Deleting a compartment never loses anything: its contents move up one level.
+- **Search** (magnifier icon) looks everywhere. Start with `#` to search tags.
+- **Drag and drop:** drag an idea or compartment onto a compartment row to file it there, or onto the back link to move it up. On touch screens, long-press first.
+- **Shortcuts** (desktop): `n` focuses the capture box, `/` opens search, `Esc` closes things.
 
 ## Where your data lives
 
@@ -35,8 +32,8 @@ The same code is packaged as an Android app with [Capacitor](https://capacitorjs
 Every push to `main` or a `claude/**` branch builds a new APK in GitHub Actions (`.github/workflows/android.yml`) and replaces the file on that release.
 
 **On the phone**
-- Long-press a card or compartment, then drag it onto a compartment, tile, breadcrumb or board column. A quick tap still opens it.
-- The back button closes the editor, then clears the search, then goes up one compartment level.
+- Long-press an idea or compartment, then drag it onto a compartment row or the back link. A quick tap still opens it.
+- The back button closes whatever is open (editor, menu, search), then goes up one compartment level.
 
 **Build it yourself** (needs JDK 21 and the Android SDK, e.g. via Android Studio)
 
@@ -68,7 +65,7 @@ npm run build   # static export to out/
 ```
 src/
   app/            layout, page, global (ice) styles, favicon
-  components/     IceBoxApp (main screen, breadcrumbs, sub-compartment tiles), Sidebar (tree),
-                  IdeaCard, IdeaModal, DropZone, Snowfall
+  components/     IceBoxApp (screens, menu, search), IdeaRow, CompartmentRow,
+                  IdeaSheet, CompartmentSheet, Sheet/PillSelect, DropZone, Snowfall, icons
   lib/            types, reducer + storage, compartment tree helpers, drag state, theme, useIceBox hook
 ```
