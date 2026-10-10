@@ -1,7 +1,7 @@
 import { Preferences } from "@capacitor/preferences";
 import { isNativeApp } from "./platform";
 import { COLOR_KEYS, STATUSES } from "./theme";
-import { buildTree, isWithin } from "./tree";
+import { buildTree, isWithin, subtreeIds } from "./tree";
 import type { Category, IceBoxData, Idea } from "./types";
 
 export const STORAGE_KEY = "icebox:v1";
@@ -20,7 +20,10 @@ export type Action =
   | { type: "deleteIdea"; id: string }
   | { type: "addCategory"; category: Category }
   | { type: "updateCategory"; id: string; patch: Partial<Omit<Category, "id">> }
-  | { type: "deleteCategory"; id: string };
+  /** Deletes a compartment; its ideas and sub-compartments move up one level. */
+  | { type: "deleteCategory"; id: string }
+  /** Deletes a compartment together with everything nested inside it. */
+  | { type: "deleteCategoryDeep"; id: string };
 
 export function reducer(state: IceBoxData, action: Action): IceBoxData {
   switch (action.type) {
@@ -53,6 +56,14 @@ export function reducer(state: IceBoxData, action: Action): IceBoxData {
         categories: state.categories.map((c) =>
           c.id === action.id ? { ...c, ...patch } : c,
         ),
+      };
+    }
+    case "deleteCategoryDeep": {
+      const doomed = subtreeIds(buildTree(state.categories), action.id);
+      return {
+        version: 1,
+        categories: state.categories.filter((c) => !doomed.has(c.id)),
+        ideas: state.ideas.filter((i) => i.categoryId === null || !doomed.has(i.categoryId)),
       };
     }
     case "deleteCategory": {

@@ -6,18 +6,16 @@ import { type Tree, flatten, isWithin } from "@/lib/tree";
 import type { Category } from "@/lib/types";
 import { PillSelect, Sheet } from "./Sheet";
 
-/** Rename, recolour, move or delete a compartment. Changes apply immediately. */
+/** Rename, recolour or move a compartment. Changes apply immediately. */
 export function CompartmentSheet({
   tree,
   category,
   onChange,
-  onDelete,
   onClose,
 }: {
   tree: Tree;
   category: Category;
   onChange: (patch: Partial<Omit<Category, "id">>) => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(category.name);
@@ -69,14 +67,7 @@ export function CompartmentSheet({
         </PillSelect>
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="rounded-lg px-2 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-400/10"
-        >
-          Delete compartment
-        </button>
+      <div className="mt-6 flex justify-end">
         <button type="button" onClick={onClose} className="ice-button rounded-xl px-5 py-2 text-sm font-semibold">
           Done
         </button>

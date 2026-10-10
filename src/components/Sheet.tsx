@@ -75,3 +75,52 @@ export function PillSelect({
     </label>
   );
 }
+
+export type Choice = { label: string; detail?: string; tone?: "danger" | "default"; onSelect: () => void };
+
+/** A question with a few big, clearly labelled answers, plus Cancel. */
+export function ChoiceSheet({
+  title,
+  message,
+  choices,
+  onClose,
+}: {
+  title: string;
+  message?: string;
+  choices: Choice[];
+  onClose: () => void;
+}) {
+  return (
+    <Sheet label={title} onClose={onClose}>
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{title}</h2>
+      {message && <p className="mt-1 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">{message}</p>}
+      <div className="mt-5 flex flex-col gap-2">
+        {choices.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            onClick={() => {
+              onClose();
+              c.onSelect();
+            }}
+            className={`rounded-2xl px-4 py-3 text-left transition ${
+              c.tone === "danger"
+                ? "bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-400/10 dark:text-rose-300 dark:hover:bg-rose-400/20"
+                : "bg-white/70 text-slate-800 hover:bg-white dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
+            }`}
+          >
+            <span className="block text-[15px] font-semibold">{c.label}</span>
+            {c.detail && <span className="mt-0.5 block text-sm opacity-75">{c.detail}</span>}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-1 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-500 hover:bg-white/50 dark:text-slate-400 dark:hover:bg-white/5"
+        >
+          Cancel
+        </button>
+      </div>
+    </Sheet>
+  );
+}

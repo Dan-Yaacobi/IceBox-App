@@ -7,10 +7,12 @@ A freezer for your ideas. Jot ideas down in a second, file them into compartment
 The app has one clean screen per place, like a file browser:
 
 - **Capture first.** Every screen opens with the "Got an idea?" box. Type an idea and press Enter, and it's frozen into the compartment you're in.
-- **Compartments**, nested as deep as you like (e.g. *Game development › Space shooter › UI*). Each screen lists the compartments inside it, then its own ideas. Tap a compartment to go in. The **‹ back** link at the top takes you up a level.
+- **Compartments**, nested as deep as you like (e.g. *Game development › Space shooter › UI*), look like a chest of drawers. Tap one to pull it open. Its front shows the name, what's inside, and **Add compartment / Edit / Delete** buttons, and its contents sit in the tray below. The **‹ back** link at the top slides it shut and takes you up a level.
 - **Statuses:** 🧊 Frozen (for later), 🌡️ Thawing (in progress), 🍨 Served (done) and 💧 Melted (dropped). Served and melted ideas tuck away under **Show finished**.
 - **Editing:** tap an idea to edit its title, notes and #tags. Its compartment and status are two tappable pills. Changes save as you type.
-- **The ⋯ menu** holds everything else: new compartment or sub-compartment, edit (rename, colour, move) or delete a compartment, and Export/Import backup. Deleting a compartment never loses anything: its contents move up one level.
+- **Selecting:** long-press a compartment or idea, or tap **Select**, then tap more to add them. A **Delete** button appears at the bottom.
+- **Deleting a compartment** that has anything inside asks what to do: **Delete everything inside too** (all nested compartments and ideas), or **Keep what's inside** (contents move up one level).
+- **The ⋯ menu** on the home screen holds Export/Import backup.
 - **Search** (magnifier icon) looks everywhere. Start with `#` to search tags.
 - **Drag and drop:** drag an idea or compartment onto a compartment row to file it there, or onto the back link to move it up. On touch screens, long-press first.
 - **Shortcuts** (desktop): `n` focuses the capture box, `/` opens search, `Esc` closes things.
